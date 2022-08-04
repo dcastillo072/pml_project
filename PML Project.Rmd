@@ -1,0 +1,161 @@
+---
+title: "PML Project"
+author: "DCastillo"
+date: "2022-08-02"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Project: Prediction Assignment Writeup
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+**Data**
+
+The training data for this project are available here:
+
+[[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv]{.underline}](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv)
+
+The test data are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>
+
+The data for this project come from this source: <http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har>. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+```{r}
+#libraries
+library(lattice)
+library(ggplot2)
+library(caret)
+library(kernlab)
+library(rattle)
+library(corrplot)
+set.seed(1234)
+```
+
+```{r}
+#loading datas
+
+traincsv <- read.csv("pml-training.csv")
+testcsv <- read.csv("pml-testing.csv")
+```
+
+```{r}
+#examining data
+dim(traincsv)
+```
+
+```{r}
+dim(testcsv)
+```
+
+### Cleaning data
+
+```{r}
+#removing mostly na columns
+traincsv <- traincsv[,colMeans(is.na(traincsv)) < .9] 
+
+#removing metadata which is irrelevant to the outcome
+traincsv <- traincsv[,-c(1:7)] 
+```
+
+```{r}
+#removing Near Zero
+nvz <- nearZeroVar(traincsv)
+traincsv <- traincsv[,-nvz]
+dim(traincsv)
+```
+
+```{r}
+inTrain <- createDataPartition(y=traincsv$classe, p=0.7, list=F)
+train <- traincsv[inTrain,]
+valid <- traincsv[-inTrain,]
+```
+
+```{r}
+control <- trainControl(method="cv", number=3, verboseIter=F)
+```
+
+```{r}
+mod_trees <- train(classe~., data=train, method="rpart", trControl = control, tuneLength = 5)
+fancyRpartPlot(mod_trees$finalModel)
+```
+
+### Prediction
+
+```{r}
+pred_trees <- predict(mod_trees, valid)
+cmtrees <- confusionMatrix(pred_trees, factor(valid$classe))
+cmtrees
+```
+
+### Random Forest
+
+```{r}
+mod_rf <- train(classe~., data=train, method="rf", trControl = control, tuneLength = 5)
+
+pred_rf <- predict(mod_rf, valid)
+cmrf <- confusionMatrix(pred_rf, factor(valid$classe))
+cmrf
+```
+
+```{r}
+plot(cmrf$table, col = cmrf$byClass, 
+     main = paste("Decision Tree Model: Predictive Accuracy =",
+                  round(cmrf$overall['Accuracy'], 4)))
+```
+
+### Gradient Boosted Trees
+
+```{r}
+mod_gbm <- train(classe~., data=train, method="gbm", trControl = control, tuneLength = 5, verbose = F)
+
+pred_gbm <- predict(mod_gbm, valid)
+cmgbm <- confusionMatrix(pred_gbm, factor(valid$classe))
+cmgbm
+```
+
+### Support Vector Machine
+
+```{r}
+mod_svm <- train(classe~., data=train, method="svmLinear", trControl = control, tuneLength = 5, verbose = F)
+
+pred_svm <- predict(mod_svm, valid)
+cmsvm <- confusionMatrix(pred_svm, factor(valid$classe))
+cmsvm
+```
+
+### Results
+
+Predictions on Test Set, with Random Forest, because was the better results.
+
+```{r}
+pred <- predict(mod_rf, testcsv)
+print(pred)
+```
+
+### Appendix
+
+```{r}
+corrPlot <- cor(train[, -length(names(train))])
+corrplot(corrPlot, method="circle", order ='FPC', type='lower',
+         tl.cex=0.6, tl.col = rgb(0,0,0))
+```
+
+```{r}
+plot(mod_trees)
+```
+
+```{r}
+plot(mod_rf)
+```
+
+```{r}
+plot(mod_gbm)
+```
